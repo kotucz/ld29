@@ -7,9 +7,14 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+
+enum FieldType {
+    VOID,
+    GROUND,
+    // non-destructible
+    BEDROCK
+}
 
 /**
  * @author tkotula
@@ -40,8 +45,25 @@ public class Grid extends Actor {
         for (int i = 0; i < width * height; i++) {
             Field field = new Field();
 
-            field.type = randomTypes[random.nextInt(randomTypes.length)];
+//            field.type = FieldType.VOID;
+            field.mStore.content = randomTypes[random.nextInt(randomTypes.length)];
             mFields.add(field);
+        }
+    }
+
+    @Override
+    public void act(float delta) {
+        super.act(delta);
+        // clear from previous step
+        for (Field field : mFields) {
+            field.occupants.clear();
+        }
+        // update which fields contains ants
+        for (Actor actor : getStage().getActors()) {
+            if (actor instanceof MyGame.Ant) {
+                MyGame.Ant ant = (MyGame.Ant) actor;
+                getField(ant.pos).occupants.add(ant);
+            }
         }
     }
 
@@ -53,13 +75,16 @@ public class Grid extends Actor {
                 Grid.Field field = getField(x, y);
 
                 TextureRegion texture = null;
-                switch (field.type) {
-                    case GROUND:
-                        texture = Tex.get().ground1;
-                        break;
-                    case BEDROCK:
-                        texture = Tex.get().bedrock1;
-                        break;
+                if (!field.mStore.isEmpty()) {
+//                    switch (field.type) {
+                    switch (field.mStore.content) {
+                        case GROUND:
+                            texture = Tex.get().ground1;
+                            break;
+                        case BEDROCK:
+                            texture = Tex.get().bedrock1;
+                            break;
+                    }
                 }
                 if (texture != null) {
                     batch.draw(texture, x * WP, y * HP);
@@ -82,6 +107,10 @@ public class Grid extends Actor {
         shapeRenderer.end();
     }
 
+    Field getField(Vec pos) {
+        return getField(pos.x, pos.y);
+    }
+
     Field getField(int x, int y) {
         if (mGridRect.contains(x, y)) {
             return mFields.get(x + y * width);
@@ -90,19 +119,20 @@ public class Grid extends Actor {
         }
     }
 
-    enum FieldType {
-        VOID,
-        GROUND,
-        // non-destructible
-        BEDROCK
-    }
-
     class Field {
 
         int color = random.nextInt();
         FieldType type = FieldType.VOID;
+        Set<MyGame.Ant> occupants = new HashSet<MyGame.Ant>();
+        Store mStore = new Store();
 
         boolean isEmpty() {
+            if (!occupants.isEmpty()) {
+                return false;
+            }
+            if (!mStore.isEmpty()) {
+                return false;
+            }
             switch (type) {
                 case VOID:
                     return true;

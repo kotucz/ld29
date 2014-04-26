@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 
+import static com.badlogic.gdx.Gdx.app;
 import static cz.kotu.ld29.Tex.Tex;
 
 public class MyGame extends ApplicationAdapter {
@@ -47,6 +48,9 @@ public class MyGame extends ApplicationAdapter {
         mStage.addActor(mGrid);
         Ant ant = new Ant();
         mStage.addActor(ant);
+        Ant ant2 = new Ant();
+        ant2.setGridPos(8, 2);
+        mStage.addActor(ant2);
 
     }
 
@@ -89,19 +93,29 @@ public class MyGame extends ApplicationAdapter {
 
     public class Ant extends Actor {
 
+        public static final float DIG_DURATION = 0.25f;
         public static final float FLIP_DURATION = 0.25f;
+        public static final float WALK_DURATION = 0.5f;
         // grid position
         final Vec pos = new Vec();
+        final Store mCarry = new Store();
+
+        // horizontal direction 1 = facing right; -1 = facing left
         int hdir = 1;
 
         public Ant() {
-            setSize(16, 16);
-            setPosition(4 * mGrid.WP, 2 * mGrid.HP);
+            setSize(mGrid.WP, mGrid.HP);
+            setGridPos(4, 2);
+        }
+
+        private void setGridPos(int x, int y) {
+            setPosition(x * mGrid.WP, y * mGrid.HP);
         }
 
         @Override
         public void act(float delta) {
             super.act(delta);
+            pos.set(MathUtils.round(getX() / mGrid.WP), MathUtils.round(getY() / mGrid.HP));
             if (getActions().size == 0) {
                 Action nextAction = getNextAction();
                 if (nextAction != null) {
@@ -113,20 +127,33 @@ public class MyGame extends ApplicationAdapter {
         }
 
         private Action getNextAction() {
-            boolean doRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
-            boolean doLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT);
-            boolean doUp = Gdx.input.isKeyPressed(Input.Keys.UP);
-            boolean doDown = Gdx.input.isKeyPressed(Input.Keys.DOWN);
-
-            pos.set(MathUtils.round(getX() / mGrid.WP), MathUtils.round(getY() / mGrid.HP));
+            final boolean wantRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
+            final boolean wantLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT);
+            final boolean wantUp = Gdx.input.isKeyPressed(Input.Keys.UP);
+            final boolean wantDown = Gdx.input.isKeyPressed(Input.Keys.DOWN);
+            final boolean wantDig = Gdx.input.isKeyPressed(Input.Keys.D);
+            final boolean wantDrop = Gdx.input.isKeyPressed(Input.Keys.D);
 
             boolean freeRight = relativeField(1, 0).isEmpty();
             boolean freeLeft = relativeField(-1, 0).isEmpty();
             boolean freeUp = relativeField(0, 1).isEmpty();
             boolean freeDown = relativeField(0, -1).isEmpty();
 
-            if (doRight != doLeft) {
-                int dir = ((doRight ? 1 : 0) + (doLeft ? -1 : 0));
+            Ant occupantInFront = null;
+            Store storeInFront = relativeField(hdir, 0).mStore;
+            for (Ant occupant : relativeField(hdir, 0).occupants) {
+                occupantInFront = occupant;
+                storeInFront = occupantInFront.mCarry;
+            }
+
+            boolean canDig = mCarry.isEmpty() && !storeInFront.isEmpty();
+            boolean canDrop = !mCarry.isEmpty() && storeInFront.isEmpty();
+
+            boolean doDig = wantDig && canDig;
+            boolean doDrop = wantDrop && canDrop;
+
+            if (wantRight != wantLeft) {
+                int dir = ((wantRight ? 1 : 0) + (wantLeft ? -1 : 0));
                 if (dir != hdir) {
                     hdir = dir;
 //                  flipSide:
@@ -138,10 +165,10 @@ public class MyGame extends ApplicationAdapter {
             boolean climbing = !relativeField(hdir, 0).isEmpty();
             boolean onLedge = !relativeField(hdir, -1).isEmpty();
 
-            doRight &= freeRight;
-            doLeft &= freeLeft;
-            doUp &= freeUp;
-            doDown &= freeDown;
+            boolean doRight = wantRight & freeRight;
+            boolean doLeft = wantLeft & freeLeft;
+            boolean doUp = wantUp & freeUp;
+            boolean doDown = wantDown & freeDown;
 
             int dx = (doRight != doLeft) ? ((doRight ? 1 : 0) + (doLeft ? -1 : 0)) : 0;
             int dy = (doUp != doDown) ? ((doUp ? 1 : 0) + (doDown ? -1 : 0)) : 0;
@@ -171,6 +198,22 @@ public class MyGame extends ApplicationAdapter {
                 }
             }
 
+            if (doDig) {
+                // field in front of ant
+                mCarry.content = storeInFront.content;
+                storeInFront.content = FieldType.VOID;
+                app.log("Ant", "" + this + " picked: " + mCarry.content);
+                return Actions.delay(DIG_DURATION);
+            }
+
+            if (doDrop) {
+                // field in front of ant
+                storeInFront.content = mCarry.content;
+                mCarry.content = null;
+                app.log("Ant", "" + this + " dropped: " + storeInFront.content);
+                return Actions.delay(DIG_DURATION);
+            }
+
             // grid coordinates
 //            Grid.Field field = mGrid.getField(pos.x + dx, pos.y + dy);
 //            Gdx.app.log("Ant", "g " + pos.x + ", " + pos.y + " d " + dx + ", " + dy + " " + field.isEmpty());
@@ -185,9 +228,8 @@ public class MyGame extends ApplicationAdapter {
 //                  flipSide:
                 return Actions.delay(FLIP_DURATION);
             } else {
-                float duration = 0.5f;
                 // animate move:
-                return Actions.moveBy(mGrid.WP * dx, mGrid.HP * dy, duration);
+                return Actions.moveBy(mGrid.WP * dx, mGrid.HP * dy, WALK_DURATION);
             }
         }
 
@@ -208,6 +250,17 @@ public class MyGame extends ApplicationAdapter {
         boolean headsRight() {
             return hdir > 0;
         }
+    }
+
+
+}
+
+class Store {
+
+    FieldType content;
+
+    boolean isEmpty() {
+        return content == null || content == FieldType.VOID;
     }
 
 }
