@@ -10,10 +10,13 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.scenes.scene2d.Action;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
+
+import static cz.kotu.ld29.Tex.Tex;
 
 public class MyGame extends ApplicationAdapter {
 
@@ -29,7 +32,7 @@ public class MyGame extends ApplicationAdapter {
 
     @Override
     public void create() {
-        Tex.sInstance = new Tex();
+        Tex.Tex = new Tex();
 
         batch = new SpriteBatch();
         shapeRenderer = new ShapeRenderer();
@@ -86,12 +89,12 @@ public class MyGame extends ApplicationAdapter {
 
     public class Ant extends Actor {
 
+        public static final float FLIP_DURATION = 0.25f;
         // grid position
         final Vec pos = new Vec();
-        TextureRegion region;
+        int hdir = 1;
 
         public Ant() {
-            region = Tex.get().redAnt;
             setSize(16, 16);
             setPosition(4 * mGrid.WP, 2 * mGrid.HP);
         }
@@ -100,51 +103,110 @@ public class MyGame extends ApplicationAdapter {
         public void act(float delta) {
             super.act(delta);
             if (getActions().size == 0) {
-
-                boolean doRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
-                boolean doLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT);
-                boolean doUp = Gdx.input.isKeyPressed(Input.Keys.UP);
-                boolean doDown = Gdx.input.isKeyPressed(Input.Keys.DOWN);
-
-                pos.set(MathUtils.round(getX() / mGrid.WP), MathUtils.round(getY() / mGrid.HP));
-
-                boolean freeRight = (mGrid.getField(pos.x + 1, pos.y).isWalkable());
-                boolean freeLeft = (mGrid.getField(pos.x - 1, pos.y).isWalkable());
-                boolean freeUp = (mGrid.getField(pos.x, pos.y + 1).isWalkable());
-                boolean freeDown = (mGrid.getField(pos.x, pos.y - 1).isWalkable());
-
-                doRight &= freeRight;
-                doLeft &= freeLeft;
-                doUp &= freeUp;
-                doDown &= freeDown;
-
-                int dx = 0;
-                int dy = 0;
-                if (doRight != doLeft) {
-                    dx = ((doRight ? 1 : 0) + (doLeft ? -1 : 0));
-                } else if (doUp != doDown) {
-                    dy = ((doUp ? 1 : 0) + (doDown ? -1 : 0));
-                }
-
-                // grid coordinates
-                Grid.Field field = mGrid.getField(pos.x + dx, pos.y + dy);
-                Gdx.app.log("Ant", "g " + pos.x + ", " + pos.y + " d " + dx + ", " + dy + " " + field.isWalkable());
-
-                if ((dx != 0 || dy != 0) && field.isWalkable()) {
-                    float duration = 0.5f;
-                    addAction(Actions.moveBy(mGrid.WP * dx, mGrid.HP * dy, duration));
+                Action nextAction = getNextAction();
+                if (nextAction != null) {
+                    addAction(nextAction);
                 }
             } else {
                 // just animate
             }
         }
 
+        private Action getNextAction() {
+            boolean doRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
+            boolean doLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT);
+            boolean doUp = Gdx.input.isKeyPressed(Input.Keys.UP);
+            boolean doDown = Gdx.input.isKeyPressed(Input.Keys.DOWN);
+
+            pos.set(MathUtils.round(getX() / mGrid.WP), MathUtils.round(getY() / mGrid.HP));
+
+            boolean freeRight = relativeField(1, 0).isEmpty();
+            boolean freeLeft = relativeField(-1, 0).isEmpty();
+            boolean freeUp = relativeField(0, 1).isEmpty();
+            boolean freeDown = relativeField(0, -1).isEmpty();
+
+            if (doRight != doLeft) {
+                int dir = ((doRight ? 1 : 0) + (doLeft ? -1 : 0));
+                if (dir != hdir) {
+                    hdir = dir;
+//                  flipSide:
+                    return Actions.delay(FLIP_DURATION);
+                }
+            }
+
+            boolean onGround = !relativeField(0, -1).isEmpty();
+            boolean climbing = !relativeField(hdir, 0).isEmpty();
+            boolean onLedge = !relativeField(hdir, -1).isEmpty();
+
+            doRight &= freeRight;
+            doLeft &= freeLeft;
+            doUp &= freeUp;
+            doDown &= freeDown;
+
+            int dx = (doRight != doLeft) ? ((doRight ? 1 : 0) + (doLeft ? -1 : 0)) : 0;
+            int dy = (doUp != doDown) ? ((doUp ? 1 : 0) + (doDown ? -1 : 0)) : 0;
+            if (!(onGround || climbing || onLedge)) {
+                // fall
+                return getMoveAction(0, -1);
+            } else if (dx != 0) {
+                if (onGround) {
+                    // ok
+                    return getMoveAction(dx, 0);
+                } else {
+                    if (onLedge) {
+                        // ok - climbed over ledge
+                        return getMoveAction(dx, 0);
+                    }
+                }
+            } else if (dy < 0) {
+                // descent
+                return getMoveAction(0, -1);
+            } else if (dy > 0) {
+                if (climbing) {
+                    // climb
+                    return getMoveAction(0, 1);
+                } else {
+                    // can not climb
+                    dy = 0;
+                }
+            }
+
+            // grid coordinates
+//            Grid.Field field = mGrid.getField(pos.x + dx, pos.y + dy);
+//            Gdx.app.log("Ant", "g " + pos.x + ", " + pos.y + " d " + dx + ", " + dy + " " + field.isEmpty());
+
+            return null;
+        }
+
+        private Action getMoveAction(int dx, int dy) {
+            if (dx != 0 && dx != hdir) {
+                // need to flip first
+                hdir = dx;
+//                  flipSide:
+                return Actions.delay(FLIP_DURATION);
+            } else {
+                float duration = 0.5f;
+                // animate move:
+                return Actions.moveBy(mGrid.WP * dx, mGrid.HP * dy, duration);
+            }
+        }
+
+        private Grid.Field relativeField(int dx, int dy) {
+            return mGrid.getField(pos.x + dx, pos.y + dy);
+        }
+
         @Override
         public void draw(Batch batch, float parentAlpha) {
             Color color = getColor();
             batch.setColor(color.r, color.g, color.b, color.a * parentAlpha);
-            batch.draw(region, getX(), getY(), getOriginX(), getOriginY(),
+
+            TextureRegion texture = (headsRight()) ? Tex.redAntRight : Tex.redAntLeft;
+            batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
                     getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
+        }
+
+        boolean headsRight() {
+            return hdir > 0;
         }
     }
 
