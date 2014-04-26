@@ -1,19 +1,67 @@
 package cz.kotu.ld29;
 
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 /**
  * @author tkotula
  */
-public class Grid {
+public class Grid extends Actor {
 
-    int width = 64;
-    int height = 48;
+    final int width = 40;
+    final int height = 30;
 
-    Field get(int x, int y) {
-        Field field = new Field();
-        field.color = new Random().nextInt();
-        return field;
+    // pixels per world unit
+    final int WP = 16;
+    final int HP = 16;
+    final List<Field> mFields = new ArrayList<Field>();
+    private final TextureRegion mTextureGround;
+
+    public Grid() {
+        mTextureGround = Tex.get().ground1;
+
+        for (int i = 0; i < width * height; i++) {
+            Field field = new Field();
+            field.color = new Random().nextInt();
+            mFields.add(field);
+        }
+    }
+
+    @Override
+    public void draw(Batch batch, float parentAlpha) {
+        super.draw(batch, parentAlpha);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                Grid.Field field = getField(x, y);
+                if (field.color > 0) {
+                    batch.draw(mTextureGround, x * WP, y * HP);
+                }
+            }
+        }
+    }
+
+    private void drawGrid(ShapeRenderer shapeRenderer) {
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        Color color = new Color();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                Grid.Field field = getField(x, y);
+                shapeRenderer.setColor(color.set(field.color));
+                shapeRenderer.rect(x * WP, y * HP, WP, HP);
+            }
+        }
+        shapeRenderer.end();
+    }
+
+    Field getField(int x, int y) {
+        return mFields.get(x + y * width);
     }
 
     class Field {
