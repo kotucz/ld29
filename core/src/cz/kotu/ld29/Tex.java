@@ -12,7 +12,8 @@ public class Tex {
     Texture badlogic = new Texture("badlogic.jpg");
     Texture pixelArt = new Texture("pixelart.png");
     TextureRegion blackAnt = subregion(1, 1);
-    TextureRegion redAnt = subregion(2, 1);
+    //    TextureRegion redAnt = subregion(2, 1);
+    TextureRegion redAnt = subregion(3, 1);
     TextureRegion ground1 = subregion(1, 0);
 
     public Tex() {

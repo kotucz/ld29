@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 
 import java.util.ArrayList;
@@ -17,15 +18,20 @@ public class Grid extends Actor {
 
     final int width = 40;
     final int height = 30;
-
+    final Rectangle mGridRect = new Rectangle(0, 0, width, height);
     // pixels per world unit
     final int WP = 16;
     final int HP = 16;
-    final List<Field> mFields = new ArrayList<Field>();
+    private final List<Field> mFields = new ArrayList<Field>();
     private final TextureRegion mTextureGround;
+    private Field mOutsideField;
 
     public Grid() {
         mTextureGround = Tex.get().ground1;
+
+        mOutsideField = new Field();
+        // not walkable
+        mOutsideField.color = 1;
 
         for (int i = 0; i < width * height; i++) {
             Field field = new Field();
@@ -40,7 +46,7 @@ public class Grid extends Actor {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 Grid.Field field = getField(x, y);
-                if (field.color > 0) {
+                if (!field.isWalkable()) {
                     batch.draw(mTextureGround, x * WP, y * HP);
                 }
             }
@@ -61,11 +67,19 @@ public class Grid extends Actor {
     }
 
     Field getField(int x, int y) {
-        return mFields.get(x + y * width);
+        if (mGridRect.contains(x, y)) {
+            return mFields.get(x + y * width);
+        } else {
+            return mOutsideField;
+        }
     }
 
     class Field {
         int color;
+
+        boolean isWalkable() {
+            return color > 0;
+        }
     }
 
 }
