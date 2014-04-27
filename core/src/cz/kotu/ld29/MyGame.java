@@ -69,18 +69,19 @@ public class MyGame extends ApplicationAdapter {
 
         createBox2dLight();
 
+        createAnt(4, 2);
+
+        createAnt(8, 2);
+
+        createAnt(8, 8);
+
+    }
+
+    private void createAnt(int x, int y) {
         Ant ant = new Ant();
-        ant.setGridPos(4, 2);
-//        mStage.addActor(ant);
-
-        Ant ant2 = new Ant();
-        ant2.setGridPos(8, 2);
-//        mStage.addActor(ant2);
-
-        Ant ant3 = new Ant();
-        ant3.setGridPos(8, 8);
-        mStage.addActor(ant3);
-
+        ant.setGridPos(x, y);
+        mStage.addActor(ant);
+        mGrid.getField(x, y).mStore.content = FieldType.VOID;
     }
 
     private void createPhysicsWorld() {
@@ -332,8 +333,8 @@ public class MyGame extends ApplicationAdapter {
                 storeInFront = occupantInFront.mCarry;
             }
 
-            boolean canDig = mCarry.isEmpty() && !storeInFront.isEmpty();
-            boolean canDrop = !mCarry.isEmpty() && storeInFront.isEmpty();
+            boolean canDig = mCarry.isEmpty() && storeInFront.isPickable();
+            boolean canDrop = mCarry.isPickable() && storeInFront.isEmpty();
 
             boolean doDig = wantDig && canDig;
             boolean doDrop = wantDrop && canDrop;

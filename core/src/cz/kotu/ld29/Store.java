@@ -11,4 +11,8 @@ class Store {
         return content == null || content == FieldType.VOID;
     }
 
+    boolean isPickable() {
+        return !isEmpty() && (content != FieldType.BORDER);
+    }
+
 }

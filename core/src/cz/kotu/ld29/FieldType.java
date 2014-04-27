@@ -9,6 +9,7 @@ enum FieldType {
     STONE,
     SUPPORT,
     // non-destructible
+    BORDER,
     BEDROCK,
     LEAF,
 }

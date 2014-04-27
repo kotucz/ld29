@@ -32,7 +32,7 @@ public class Grid extends Actor {
         // not walkable
         mOutsideField.color = 1;
 //        mOutsideField.type = FieldType.BEDROCK;
-        mOutsideField.mStore.content = FieldType.BEDROCK;
+        mOutsideField.mStore.content = FieldType.BORDER;
 
         FieldType[] randomTypes = {FieldType.VOID, FieldType.VOID, FieldType.VOID, FieldType.GROUND, FieldType.GROUND, FieldType.BEDROCK};
         FieldType[] randomFullTypes = {FieldType.GROUND, FieldType.GROUND, FieldType.STONE, FieldType.BEDROCK};
@@ -112,6 +112,8 @@ public class Grid extends Actor {
                 return Tex.get().support1;
             case LEAF:
                 return Tex.get().leaf1;
+            case BORDER:
+                return Tex.get().glass1;
             default:
                 return Tex.get().questionMark;
         }

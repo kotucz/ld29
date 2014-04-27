@@ -22,6 +22,7 @@ public class Tex {
     TextureRegion stone1 = subregion(4, 0);
     TextureRegion bedrock1 = subregion(2, 0);
     TextureRegion support1 = subregion(5, 0);
+    TextureRegion glass1 = subregion(6, 0);
 
     TextureRegion leaf1 = subregion(0, 2);
 
