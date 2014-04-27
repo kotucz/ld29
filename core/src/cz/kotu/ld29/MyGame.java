@@ -1,8 +1,13 @@
 package cz.kotu.ld29;
 
+import box2dLight.DirectionalLight;
+import box2dLight.Light;
+import box2dLight.PointLight;
+import box2dLight.RayHandler;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -10,26 +15,38 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.scenes.scene2d.Action;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 
+import java.util.ArrayList;
+
 import static com.badlogic.gdx.Gdx.app;
 import static cz.kotu.ld29.Tex.Tex;
 
 public class MyGame extends ApplicationAdapter {
 
+    private static final int RAYS_PER_BALL = 128;
+    private static final int BALLSNUM = 5;
+    /**
+     * our boxes *
+     */
+    private ArrayList<Body> balls = new ArrayList<Body>(BALLSNUM);
+    private static final float LIGHT_DISTANCE = 16f;
+    private static final float radius = 1f;
     SpriteBatch batch;
-
     ShapeRenderer shapeRenderer;
-
     Grid mGrid;
-
     Stage mStage;
-
     ExtendViewport mViewport;
+    RayHandler rayHandler;
+    private World world;
+    private DirectionalLight mDayLight;
 
     @Override
     public void create() {
@@ -39,20 +56,157 @@ public class MyGame extends ApplicationAdapter {
         shapeRenderer = new ShapeRenderer();
 
         // emulated display size
-        mViewport = new ExtendViewport(160, 120);
+//        mViewport = new ExtendViewport(160, 120);
+        mViewport = new ExtendViewport(320, 240);
         mStage = new Stage(mViewport);
 
         Gdx.input.setInputProcessor(mStage);
 
         mGrid = new Grid();
         mStage.addActor(mGrid);
+
+        createPhysicsWorld();
+
+        createBox2dLight();
+
         Ant ant = new Ant();
-        mStage.addActor(ant);
+        ant.setGridPos(4, 2);
+//        mStage.addActor(ant);
+
         Ant ant2 = new Ant();
         ant2.setGridPos(8, 2);
-        mStage.addActor(ant2);
+//        mStage.addActor(ant2);
+
+        Ant ant3 = new Ant();
+        ant3.setGridPos(8, 8);
+        mStage.addActor(ant3);
 
     }
+
+    private void createPhysicsWorld() {
+
+        world = new World(new Vector2(0, -10), true);
+
+//        ChainShape chainShape = new ChainShape();
+//        chainShape.createLoop(new Vector2[]{new Vector2(-22, 1),
+//                new Vector2(22, 1), new Vector2(22, 31), new Vector2(0, 20),
+//                new Vector2(-22, 31)});
+//        BodyDef chainBodyDef = new BodyDef();
+//        chainBodyDef.type = BodyDef.BodyType.StaticBody;
+//        groundBody = world.createBody(chainBodyDef);
+//        groundBody.createFixture(chainShape, 0);
+//        chainShape.dispose();
+    }
+
+    private void createBalls() {
+        CircleShape ballShape = new CircleShape();
+        ballShape.setRadius(radius);
+
+        FixtureDef def = new FixtureDef();
+        def.restitution = 0.9f;
+        def.friction = 0.01f;
+        def.shape = ballShape;
+        def.density = 1f;
+        BodyDef boxBodyDef = new BodyDef();
+        boxBodyDef.type = BodyDef.BodyType.DynamicBody;
+
+        for (int i = 0; i < BALLSNUM * 2; i++) {
+            // Create the BodyDef, set a random position above the
+            // ground and create a new body
+//            boxBodyDef.position.x = 0 + (float) (Math.random() * mGrid.width * mGrid.WP);
+//            boxBodyDef.position.y = 0 + (float) (Math.random() * mGrid.height * mGrid.HP);
+            boxBodyDef.position.x = 0 + (float) (Math.random() * 10);
+            boxBodyDef.position.y = 0 + (float) (Math.random() * 8);
+            Body boxBody = world.createBody(boxBodyDef);
+            boxBody.createFixture(def);
+            balls.add(boxBody);
+        }
+        ballShape.dispose();
+    }
+
+    private void updateLightBoxes() {
+
+//        createBox(1, 0);
+//
+//        createBox(4, 4);
+
+        for (int y = 0; y < mGrid.height; y++) {
+            for (int x = 0; x < mGrid.width; x++) {
+                updateFieldLightBox(y, x);
+            }
+        }
+
+    }
+
+    private void updateFieldLightBox(int y, int x) {
+        Grid.Field field = mGrid.getField(x, y);
+
+        if (field.blocksLight()) {
+            if (field.lightBox == null) {
+                field.lightBox = createBox(x, y);
+            }
+        } else {
+            if (field.lightBox != null) {
+                world.destroyBody(field.lightBox);
+                field.lightBox = null;
+            }
+        }
+
+    }
+
+    private Body createBox(int x, int y) {
+        PolygonShape boxShape = new PolygonShape();
+        boxShape.setAsBox(0.5f, 0.5f);
+
+        FixtureDef def = new FixtureDef();
+        def.shape = boxShape;
+        BodyDef boxBodyDef = new BodyDef();
+        boxBodyDef.position.set(x + 0.5f, y + 0.5f);
+        Body boxBody = world.createBody(boxBodyDef);
+        boxBody.createFixture(def);
+
+        boxShape.dispose();
+
+        return boxBody;
+    }
+
+
+    private void createBox2dLight() {
+        /** BOX2D LIGHT STUFF BEGIN */
+//        RayHandler.setGammaCorrection(true);
+//        RayHandler.useDiffuseLight(true);
+        rayHandler = new RayHandler(world);
+//        rayHandler.setAmbientLight(0.2f, 0.2f, 0.2f, 0.1f);
+//        rayHandler.setCulling(true);
+//        rayHandler.setBlur(false);
+        rayHandler.setBlurNum(1);
+        rayHandler.setShadows(true);
+        mViewport.getCamera().update(true);
+
+        // rayHandler.setCombinedMatrix(camera.combined, camera.position.x,
+        // camera.position.y, camera.viewportWidth * camera.zoom,
+        // camera.viewportHeight * camera.zoom);
+        for (int i = 0; i < 0; i++) {
+            // final Color c = new Color(MathUtils.random()*0.4f,
+            // MathUtils.random()*0.4f,
+            // MathUtils.random()*0.4f, 1f);
+            Light light = new PointLight(rayHandler, RAYS_PER_BALL);
+            light.setDistance(LIGHT_DISTANCE);
+//            light.setDistance(5);
+            // Light light = new ConeLight(rayHandler, RAYS_PER_BALL, null,
+            // LIGHT_DISTANCE, 0, 0, 0, 60);
+            // light.setStaticLight(true);
+            light.attachToBody(balls.get(i), 0, 0.5f);
+//            light.setPosition(balls.get(i), 0, 0.5f);
+            light.setColor(MathUtils.random(), MathUtils.random(),
+                    MathUtils.random(), 1f);
+            // light.setColor(0.1f,0.1f,0.1f,0.1f);
+
+        }
+        Light redLight = new PointLight(rayHandler, RAYS_PER_BALL, Color.RED, LIGHT_DISTANCE, 0, 0);
+        Color dayLight = new Color(64 / 255f, 156 / 255f, 255 / 255f, 1f);
+        mDayLight = new DirectionalLight(rayHandler, 24, dayLight, -90);
+        /** BOX2D LIGHT STUFF END */}
 
     @Override
     public void resize(int width, int height) {
@@ -61,6 +215,7 @@ public class MyGame extends ApplicationAdapter {
 
     @Override
     public void dispose() {
+        rayHandler.dispose();
         mStage.dispose();
     }
 
@@ -89,6 +244,29 @@ public class MyGame extends ApplicationAdapter {
         mStage.act(Gdx.graphics.getDeltaTime());
         mStage.draw();
 
+        /** BOX2D LIGHT STUFF BEGIN */
+
+        updateLightBoxes();
+
+        Camera camera = mViewport.getCamera();
+
+//        rayHandler.setCombinedMatrix(camera.combined, camera.position.x,
+//                camera.position.y, camera.viewportWidth * camera.zoom,
+//                camera.viewportHeight * camera.zoom);
+
+
+        Matrix4 tempCombined = camera.combined.cpy();
+        tempCombined.scl(16);
+
+//        rayHandler.setCombinedMatrix(camera.combined);
+        rayHandler.setCombinedMatrix(tempCombined);
+
+//        if (stepped)
+        rayHandler.update();
+        rayHandler.render();
+
+        /** BOX2D LIGHT STUFF END */
+
     }
 
     public class Ant extends Actor {
@@ -99,13 +277,16 @@ public class MyGame extends ApplicationAdapter {
         // grid position
         final Vec pos = new Vec();
         final Store mCarry = new Store();
-
+        private final Light mPointLight;
         // horizontal direction 1 = facing right; -1 = facing left
         int hdir = 1;
 
         public Ant() {
             setSize(mGrid.WP, mGrid.HP);
-            setGridPos(4, 2);
+            float lightDistance = 4;
+            // candle light color
+            Color lightColor = new Color(255 / 255f, 147 / 255f, 41 / 255f, 1);
+            mPointLight = new PointLight(rayHandler, RAYS_PER_BALL, lightColor, lightDistance, pos.x, pos.y);
         }
 
         private void setGridPos(int x, int y) {
@@ -116,6 +297,11 @@ public class MyGame extends ApplicationAdapter {
         public void act(float delta) {
             super.act(delta);
             pos.set(MathUtils.round(getX() / mGrid.WP), MathUtils.round(getY() / mGrid.HP));
+            mPointLight.setPosition((getX() / mGrid.WP) + 0.5f, getY() / mGrid.HP + 0.5f);
+            // turn off on daylight:
+//            mPointLight.setActive(!rayHandler.pointAtLight(mPointLight.getPosition().x, mPointLight.getPosition().y));
+            mPointLight.setActive(!mDayLight.contains(mPointLight.getPosition().x, mPointLight.getPosition().y));
+
             if (getActions().size == 0) {
                 Action nextAction = getNextAction();
                 if (nextAction != null) {
@@ -246,12 +432,14 @@ public class MyGame extends ApplicationAdapter {
             batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
                     getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
 
-            TextureRegion carryTexture = (headsRight()) ? Tex.redAntRight : Tex.redAntLeft;
-            if (mCarry.isEmpty()) {
-
-            }
-            batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
-                    getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
+            // TODO show what is carried
+//            TextureRegion carryTexture = (headsRight()) ? Tex.redAntRight : Tex.redAntLeft;
+//            if (mCarry.isEmpty()) {
+//
+//            } else {
+//                batch.draw(carryTexture, getX(), getY(), getOriginX(), getOriginY(),
+//                        getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
+//            }
         }
 
         boolean headsRight() {

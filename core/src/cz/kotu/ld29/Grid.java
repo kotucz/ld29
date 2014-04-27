@@ -4,7 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 
 import java.util.*;
@@ -15,9 +15,10 @@ import java.util.*;
 public class Grid extends Actor {
 
     public static final float EMPTY_PROBABILITY = 0.4f;
+    final int SURFACE_HEIGHT = 10;
+
     final int width = 40;
     final int height = 30;
-    final Rectangle mGridRect = new Rectangle(0, 0, width, height);
     // pixels per world unit
     final int WP = 16;
     final int HP = 16;
@@ -30,26 +31,35 @@ public class Grid extends Actor {
         mOutsideField = new Field();
         // not walkable
         mOutsideField.color = 1;
-        mOutsideField.type = FieldType.BEDROCK;
+//        mOutsideField.type = FieldType.BEDROCK;
+        mOutsideField.mStore.content = FieldType.BEDROCK;
 
         FieldType[] randomTypes = {FieldType.VOID, FieldType.VOID, FieldType.VOID, FieldType.GROUND, FieldType.GROUND, FieldType.BEDROCK};
         FieldType[] randomFullTypes = {FieldType.GROUND, FieldType.GROUND, FieldType.STONE, FieldType.BEDROCK};
 
-        for (int i = 0; i < width * height; i++) {
-            Field field = new Field();
-            mFields.add(field);
+        //        for (int i = 0; i < width * height; i++) {
+        // this order is somehow important!
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                Field field = new Field();
+                mFields.add(field);
 
-//            field.type = FieldType.VOID;
-            float emptyProb = random.nextFloat();
-            if (emptyProb < EMPTY_PROBABILITY) {
-                field.mStore.content = FieldType.VOID;
-                if (random.nextFloat() < 0.1f) {
-                    field.mStore.content = FieldType.LEAF;
-                } else if (random.nextFloat() < 0.1f) {
-                    field.mStore.content = FieldType.SUPPORT;
+                if (SURFACE_HEIGHT < y) {
+                    // fresh air
+                    field.mStore.content = FieldType.VOID;
+                } else {
+                    float emptyProb = random.nextFloat();
+                    if ((emptyProb < EMPTY_PROBABILITY)) {
+                        field.mStore.content = FieldType.VOID;
+                        if (random.nextFloat() < 0.1f) {
+                            field.mStore.content = FieldType.LEAF;
+                        } else if (random.nextFloat() < 0.1f) {
+                            field.mStore.content = FieldType.SUPPORT;
+                        }
+                    } else {
+                        field.mStore.content = randomFullTypes[random.nextInt(randomFullTypes.length)];
+                    }
                 }
-            } else {
-                field.mStore.content = randomFullTypes[random.nextInt(randomFullTypes.length)];
             }
         }
     }
@@ -73,8 +83,9 @@ public class Grid extends Actor {
     @Override
     public void draw(Batch batch, float parentAlpha) {
         super.draw(batch, parentAlpha);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
+        int border = 2;
+        for (int y = 0 - border; y < height + border; y++) {
+            for (int x = 0 - border; x < width + border; x++) {
                 Grid.Field field = getField(x, y);
 
                 TextureRegion texture = getTextureForType(field.mStore);
@@ -124,7 +135,7 @@ public class Grid extends Actor {
     }
 
     Field getField(int x, int y) {
-        if (mGridRect.contains(x, y)) {
+        if (0 <= x && x < this.width && 0 <= y && y < height) {
             return mFields.get(x + y * width);
         } else {
             return mOutsideField;
@@ -133,8 +144,9 @@ public class Grid extends Actor {
 
     class Field {
 
+        public Body lightBox;
         int color = random.nextInt();
-        FieldType type = FieldType.VOID;
+        //        FieldType type = FieldType.VOID;
         Set<MyGame.Ant> occupants = new HashSet<MyGame.Ant>();
         Store mStore = new Store();
 
@@ -142,15 +154,34 @@ public class Grid extends Actor {
             if (!occupants.isEmpty()) {
                 return false;
             }
-            if (!mStore.isEmpty()) {
-                return false;
+            if (mStore.isEmpty()) {
+                return true;
             }
-            switch (type) {
+            switch (mStore.content) {
                 case VOID:
                 case SUPPORT:
+                case LEAF:
                     return true;
                 case GROUND:
                 case BEDROCK:
+                default:
+                    return false;
+            }
+        }
+
+        boolean blocksLight() {
+            if (mStore.isEmpty()) {
+                return false;
+            }
+            switch (mStore.content) {
+                case GROUND:
+                case STONE:
+                case BEDROCK:
+                    return true;
+
+                case VOID:
+                case SUPPORT:
+                case LEAF:
                 default:
                     return false;
             }
