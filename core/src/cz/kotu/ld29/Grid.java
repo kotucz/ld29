@@ -9,18 +9,12 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 
 import java.util.*;
 
-enum FieldType {
-    VOID,
-    GROUND,
-    // non-destructible
-    BEDROCK
-}
-
 /**
  * @author tkotula
  */
 public class Grid extends Actor {
 
+    public static final float EMPTY_PROBABILITY = 0.4f;
     final int width = 40;
     final int height = 30;
     final Rectangle mGridRect = new Rectangle(0, 0, width, height);
@@ -28,12 +22,10 @@ public class Grid extends Actor {
     final int WP = 16;
     final int HP = 16;
     private final List<Field> mFields = new ArrayList<Field>();
-    private final TextureRegion mTextureGround;
     private final Random random = new Random();
     private Field mOutsideField;
 
     public Grid() {
-        mTextureGround = Tex.get().ground1;
 
         mOutsideField = new Field();
         // not walkable
@@ -41,13 +33,24 @@ public class Grid extends Actor {
         mOutsideField.type = FieldType.BEDROCK;
 
         FieldType[] randomTypes = {FieldType.VOID, FieldType.VOID, FieldType.VOID, FieldType.GROUND, FieldType.GROUND, FieldType.BEDROCK};
+        FieldType[] randomFullTypes = {FieldType.GROUND, FieldType.GROUND, FieldType.STONE, FieldType.BEDROCK};
 
         for (int i = 0; i < width * height; i++) {
             Field field = new Field();
+            mFields.add(field);
 
 //            field.type = FieldType.VOID;
-            field.mStore.content = randomTypes[random.nextInt(randomTypes.length)];
-            mFields.add(field);
+            float emptyProb = random.nextFloat();
+            if (emptyProb < EMPTY_PROBABILITY) {
+                field.mStore.content = FieldType.VOID;
+                if (random.nextFloat() < 0.1f) {
+                    field.mStore.content = FieldType.LEAF;
+                } else if (random.nextFloat() < 0.1f) {
+                    field.mStore.content = FieldType.SUPPORT;
+                }
+            } else {
+                field.mStore.content = randomFullTypes[random.nextInt(randomFullTypes.length)];
+            }
         }
     }
 
@@ -74,23 +77,32 @@ public class Grid extends Actor {
             for (int x = 0; x < width; x++) {
                 Grid.Field field = getField(x, y);
 
-                TextureRegion texture = null;
-                if (!field.mStore.isEmpty()) {
-//                    switch (field.type) {
-                    switch (field.mStore.content) {
-                        case GROUND:
-                            texture = Tex.get().ground1;
-                            break;
-                        case BEDROCK:
-                            texture = Tex.get().bedrock1;
-                            break;
-                    }
-                }
+                TextureRegion texture = getTextureForType(field.mStore);
                 if (texture != null) {
                     batch.draw(texture, x * WP, y * HP);
                 }
 
             }
+        }
+    }
+
+    TextureRegion getTextureForType(Store store) {
+        if (store.isEmpty()) {
+            return null;
+        }
+        switch (store.content) {
+            case GROUND:
+                return Tex.get().ground1;
+            case BEDROCK:
+                return Tex.get().bedrock1;
+            case STONE:
+                return Tex.get().stone1;
+            case SUPPORT:
+                return Tex.get().support1;
+            case LEAF:
+                return Tex.get().leaf1;
+            default:
+                return Tex.get().questionMark;
         }
     }
 
@@ -135,6 +147,7 @@ public class Grid extends Actor {
             }
             switch (type) {
                 case VOID:
+                case SUPPORT:
                     return true;
                 case GROUND:
                 case BEDROCK:

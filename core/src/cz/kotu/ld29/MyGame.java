@@ -245,6 +245,13 @@ public class MyGame extends ApplicationAdapter {
             TextureRegion texture = (headsRight()) ? Tex.redAntRight : Tex.redAntLeft;
             batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
                     getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
+
+            TextureRegion carryTexture = (headsRight()) ? Tex.redAntRight : Tex.redAntLeft;
+            if (mCarry.isEmpty()) {
+
+            }
+            batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
+                    getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
         }
 
         boolean headsRight() {
@@ -255,12 +262,3 @@ public class MyGame extends ApplicationAdapter {
 
 }
 
-class Store {
-
-    FieldType content;
-
-    boolean isEmpty() {
-        return content == null || content == FieldType.VOID;
-    }
-
-}
