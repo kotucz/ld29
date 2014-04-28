@@ -71,7 +71,7 @@ public class MyGame extends ApplicationAdapter {
 
         createAnt(4, 2);
 
-        createAnt(8, 2);
+        createAnt(16, 4);
 
         createAnt(8, 8);
 
@@ -325,12 +325,12 @@ public class MyGame extends ApplicationAdapter {
         }
 
         Action getNextAction() {
-            final boolean wantRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
-            final boolean wantLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT);
-            final boolean wantUp = Gdx.input.isKeyPressed(Input.Keys.UP);
-            final boolean wantDown = Gdx.input.isKeyPressed(Input.Keys.DOWN);
-            final boolean wantDig = Gdx.input.isKeyPressed(Input.Keys.D);
-            final boolean wantDrop = Gdx.input.isKeyPressed(Input.Keys.D);
+            final boolean wantRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT) || Gdx.input.isKeyPressed(Input.Keys.D);
+            final boolean wantLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT) || Gdx.input.isKeyPressed(Input.Keys.A);
+            final boolean wantUp = Gdx.input.isKeyPressed(Input.Keys.UP) || Gdx.input.isKeyPressed(Input.Keys.W);
+            final boolean wantDown = Gdx.input.isKeyPressed(Input.Keys.DOWN) || Gdx.input.isKeyPressed(Input.Keys.S);
+            final boolean wantDig = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isKeyPressed(Input.Keys.F);
+            final boolean wantDrop = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isKeyPressed(Input.Keys.F);
 
             boolean freeRight = relativeField(1, 0).isEmpty();
             boolean freeLeft = relativeField(-1, 0).isEmpty();
