@@ -171,6 +171,10 @@ public class Grid extends Actor {
             }
         }
 
+        void setEmpty() {
+            mStore.content = FieldType.VOID;
+        }
+
         boolean blocksLight() {
             if (mStore.isEmpty()) {
                 return false;

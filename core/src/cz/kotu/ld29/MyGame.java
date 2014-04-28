@@ -75,13 +75,24 @@ public class MyGame extends ApplicationAdapter {
 
         createAnt(8, 8);
 
+        createQueen(10, 4);
+
     }
 
     private void createAnt(int x, int y) {
-        Ant ant = new Ant();
+        placeAnt(x, y, new Ant());
+    }
+
+    private void createQueen(int x, int y) {
+        placeAnt(x, y, new Queen());
+    }
+
+    private void placeAnt(int x, int y, Ant ant) {
         ant.setGridPos(x, y);
         mStage.addActor(ant);
-        mGrid.getField(x, y).mStore.content = FieldType.VOID;
+        mGrid.getField(x, y).setEmpty();
+        mGrid.getField(x - 1, y).setEmpty();
+        mGrid.getField(x + 1, y).setEmpty();
     }
 
     private void createPhysicsWorld() {
@@ -204,7 +215,7 @@ public class MyGame extends ApplicationAdapter {
             // light.setColor(0.1f,0.1f,0.1f,0.1f);
 
         }
-        Light redLight = new PointLight(rayHandler, RAYS_PER_BALL, Color.RED, LIGHT_DISTANCE, 0, 0);
+//        Light redLight = new PointLight(rayHandler, RAYS_PER_BALL, Color.RED, LIGHT_DISTANCE, 0, 0);
         Color dayLight = new Color(64 / 255f, 156 / 255f, 255 / 255f, 1f);
         mDayLight = new DirectionalLight(rayHandler, 24, dayLight, -90);
         /** BOX2D LIGHT STUFF END */}
@@ -278,7 +289,7 @@ public class MyGame extends ApplicationAdapter {
         // grid position
         final Vec pos = new Vec();
         final Store mCarry = new Store();
-        private final Light mPointLight;
+        final Light mPointLight;
         // horizontal direction 1 = facing right; -1 = facing left
         int hdir = 1;
 
@@ -313,7 +324,7 @@ public class MyGame extends ApplicationAdapter {
             }
         }
 
-        private Action getNextAction() {
+        Action getNextAction() {
             final boolean wantRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
             final boolean wantLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT);
             final boolean wantUp = Gdx.input.isKeyPressed(Input.Keys.UP);
@@ -415,6 +426,10 @@ public class MyGame extends ApplicationAdapter {
 //                  flipSide:
                 return Actions.delay(FLIP_DURATION);
             } else {
+                // add immediately so that we do not have two ants on the same field
+                // TODO not so simple - we refresh every frame
+                // mGrid.getField(pos.x + dx, pos.y + dy).occupants.add(this);
+
                 // animate move:
                 return Actions.moveBy(mGrid.WP * dx, mGrid.HP * dy, WALK_DURATION);
             }
@@ -433,19 +448,78 @@ public class MyGame extends ApplicationAdapter {
             batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
                     getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
 
-            // TODO show what is carried
-//            TextureRegion carryTexture = (headsRight()) ? Tex.redAntRight : Tex.redAntLeft;
-//            if (mCarry.isEmpty()) {
-//
-//            } else {
-//                batch.draw(carryTexture, getX(), getY(), getOriginX(), getOriginY(),
-//                        getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
-//            }
+            // show what is carried
+            TextureRegion carryTexture = mGrid.getTextureForType(mCarry);
+            if (carryTexture != null) {
+                batch.draw(carryTexture, getX() + 4 + 6 * hdir, getY() + 1, 8f, 8f);
+            }
         }
 
         boolean headsRight() {
             return hdir > 0;
         }
+    }
+
+    class Queen extends Ant {
+
+        Queen() {
+
+            mPointLight.setColor(Color.RED);
+        }
+
+//        @Override
+//        public void act(float delta) {
+//            super.act(delta);
+//            pos.set(MathUtils.round(getX() / mGrid.WP), MathUtils.round(getY() / mGrid.HP));
+//            mPointLight.setPosition((getX() / mGrid.WP) + 0.5f, getY() / mGrid.HP + 0.5f);
+//            // turn off on daylight:
+////            mPointLight.setActive(!rayHandler.pointAtLight(mPointLight.getPosition().x, mPointLight.getPosition().y));
+//            mPointLight.setActive(!mDayLight.contains(mPointLight.getPosition().x, mPointLight.getPosition().y));
+//
+//            if (getActions().size == 0) {
+//                Action nextAction = getNextAction();
+//                if (nextAction != null) {
+//                    addAction(nextAction);
+//                }
+//            } else {
+//                // just animate
+//            }
+//        }
+
+        @Override
+        Action getNextAction() {
+            if (mCarry.content == FieldType.LEAF) {
+                // consume
+                mCarry.content = null;
+                // do not spawn on same place
+                if (mGrid.getField(pos.x, pos.y + 1).occupants.isEmpty()) {
+                    // spawn
+                    createAnt(pos.x, pos.y + 1);
+                }
+            } else {
+                // consume
+                mCarry.content = null;
+            }
+            return Actions.delay(5); // 5s
+        }
+
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
+            Color color = getColor();
+            batch.setColor(color.r, color.g, color.b, color.a * parentAlpha);
+
+            TextureRegion texture = Tex.redAntQueeen;
+            batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
+                    getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
+
+            TextureRegion carryTexture = mGrid.getTextureForType(mCarry);
+            if (carryTexture != null) {
+                batch.draw(carryTexture, getX() + 4, getY() + 1, 8f, 8f);
+            }
+
+        }
+
+
     }
 
 

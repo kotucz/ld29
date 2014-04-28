@@ -17,6 +17,7 @@ public class Tex {
     TextureRegion redAntLeft = new TextureRegion(redAntRight) {{
         flip(true, false);
     }};
+    TextureRegion redAntQueeen = subregion(4, 1);
 
     TextureRegion ground1 = subregion(1, 0);
     TextureRegion stone1 = subregion(4, 0);
