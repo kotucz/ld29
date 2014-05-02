@@ -3,8 +3,12 @@ canvas {
     outline: none;
 }
 
+a, div, h1, h2 {
+    color: #ddd;
+}
+
 body {
-    background-color: #ffffff;
+    background-color: #222;
 }
 
 .superdev {
