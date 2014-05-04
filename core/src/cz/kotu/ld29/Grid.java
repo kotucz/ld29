@@ -7,14 +7,16 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 /**
  * @author tkotula
  */
 public class Grid extends Actor {
 
-    public static final float EMPTY_PROBABILITY = 0.4f;
+    public static final float EMPTY_PROBABILITY = 0.66f;
     final int SURFACE_HEIGHT = 10;
 
     final int width = 40;
@@ -22,7 +24,7 @@ public class Grid extends Actor {
     // pixels per world unit
     final int WP = 16;
     final int HP = 16;
-    private final List<Field> mFields = new ArrayList<Field>();
+    final List<Field> mFields = new ArrayList<Field>();
     private final Random random = new Random();
     private Field mOutsideField;
 
@@ -35,7 +37,9 @@ public class Grid extends Actor {
         mOutsideField.mStore.content = FieldType.BORDER;
 
         FieldType[] randomTypes = {FieldType.VOID, FieldType.VOID, FieldType.VOID, FieldType.GROUND, FieldType.GROUND, FieldType.BEDROCK};
-        FieldType[] randomFullTypes = {FieldType.GROUND, FieldType.GROUND, FieldType.STONE, FieldType.BEDROCK};
+        FieldType[] randomFullTypes = {FieldType.GROUND, FieldType.GROUND,
+//                FieldType.STONE,
+                FieldType.BEDROCK};
 
         //        for (int i = 0; i < width * height; i++) {
         // this order is somehow important!
@@ -67,17 +71,6 @@ public class Grid extends Actor {
     @Override
     public void act(float delta) {
         super.act(delta);
-        // clear from previous step
-        for (Field field : mFields) {
-            field.occupants.clear();
-        }
-        // update which fields contains ants
-        for (Actor actor : getStage().getActors()) {
-            if (actor instanceof MyGame.Ant) {
-                MyGame.Ant ant = (MyGame.Ant) actor;
-                getField(ant.pos).occupants.add(ant);
-            }
-        }
     }
 
     @Override
@@ -101,7 +94,11 @@ public class Grid extends Actor {
         if (store.isEmpty()) {
             return null;
         }
-        switch (store.content) {
+        return getTextureForType(store.content);
+    }
+
+    TextureRegion getTextureForType(FieldType type) {
+        switch (type) {
             case GROUND:
                 return Tex.get().ground1;
             case BEDROCK:
@@ -132,6 +129,10 @@ public class Grid extends Actor {
         shapeRenderer.end();
     }
 
+    Vec randomPos() {
+        return new Vec(random.nextInt(width), random.nextInt(height));
+    }
+
     Field getField(Vec pos) {
         return getField(pos.x, pos.y);
     }
@@ -149,11 +150,11 @@ public class Grid extends Actor {
         public Body lightBox;
         int color = random.nextInt();
         //        FieldType type = FieldType.VOID;
-        Set<MyGame.Ant> occupants = new HashSet<MyGame.Ant>();
+        List<MyGame.Block> mBlocks = new ArrayList<MyGame.Block>();
         Store mStore = new Store();
 
         boolean isEmpty() {
-            if (!occupants.isEmpty()) {
+            if (!mBlocks.isEmpty()) {
                 return false;
             }
             if (mStore.isEmpty()) {
@@ -171,8 +172,9 @@ public class Grid extends Actor {
             }
         }
 
-        void setEmpty() {
+        void clear() {
             mStore.content = FieldType.VOID;
+            mBlocks.clear();
         }
 
         boolean blocksLight() {

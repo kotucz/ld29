@@ -25,20 +25,26 @@ import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import static com.badlogic.gdx.Gdx.app;
 import static cz.kotu.ld29.Tex.Tex;
 
 public class MyGame extends ApplicationAdapter {
 
+    public static final boolean ENABLE_LIGHTS = false;
+    public static final float DIG_DURATION = 0.25f;
+    public static final float FLIP_DURATION = 0.25f;
+    public static final float WALK_DURATION = 0.5f;
     private static final int RAYS_PER_BALL = 128;
     private static final int BALLSNUM = 5;
-    /**
-     * our boxes *
-     */
     private ArrayList<Body> balls = new ArrayList<Body>(BALLSNUM);
     private static final float LIGHT_DISTANCE = 16f;
     private static final float radius = 1f;
+    final Vec DIR_UP = new Vec(0, 1);
+    final Vec DIR_DOWN = new Vec(0, -1);
+    final Vec DIR_RIGHT = new Vec(1, 0);
+    final Vec DIR_LEFT = new Vec(-1, 0);
     SpriteBatch batch;
     ShapeRenderer shapeRenderer;
     Grid mGrid;
@@ -69,6 +75,13 @@ public class MyGame extends ApplicationAdapter {
 
         createBox2dLight();
 
+        for (int i = 0; i < 50; i++) {
+            Vec vec = mGrid.randomPos();
+            createBlock(vec.x, vec.y);
+        }
+
+        createBlock(5, 5);
+
         createAnt(4, 2);
 
         createAnt(16, 4);
@@ -79,20 +92,26 @@ public class MyGame extends ApplicationAdapter {
 
     }
 
+    private void createBlock(int x, int y) {
+        Block block = new Block();
+        placeBlock(x, y, block);
+    }
+
     private void createAnt(int x, int y) {
-        placeAnt(x, y, new Ant());
+        placeBlock(x, y, new Ant());
     }
 
     private void createQueen(int x, int y) {
-        placeAnt(x, y, new Queen());
+        mGrid.getField(x - 1, y).clear();
+        mGrid.getField(x + 1, y).clear();
+        placeBlock(x, y, new Queen());
     }
 
-    private void placeAnt(int x, int y, Ant ant) {
-        ant.setGridPos(x, y);
-        mStage.addActor(ant);
-        mGrid.getField(x, y).setEmpty();
-        mGrid.getField(x - 1, y).setEmpty();
-        mGrid.getField(x + 1, y).setEmpty();
+    private void placeBlock(int x, int y, Block block) {
+        block.setGridPos(x, y);
+        mStage.addActor(block);
+        mGrid.getField(x, y).clear();
+        mGrid.getField(x, y).mBlocks.add(block);
     }
 
     private void createPhysicsWorld() {
@@ -253,7 +272,10 @@ public class MyGame extends ApplicationAdapter {
 
         batch.end();
 
+        globalAct(Gdx.graphics.getDeltaTime());
+
         mStage.act(Gdx.graphics.getDeltaTime());
+
         mStage.draw();
 
         /** BOX2D LIGHT STUFF BEGIN */
@@ -275,40 +297,132 @@ public class MyGame extends ApplicationAdapter {
 
 //        if (stepped)
         rayHandler.update();
-        rayHandler.render();
+        // enable light effects
+        if (ENABLE_LIGHTS) {
+            rayHandler.render();
+        }
 
         /** BOX2D LIGHT STUFF END */
 
     }
 
-    public class Ant extends Actor {
+    void globalAct(float deltaTime) {
+        final boolean wantRight = Gdx.input.isKeyPressed(Input.Keys.RIGHT) || Gdx.input.isKeyPressed(Input.Keys.D);
+        final boolean wantLeft = Gdx.input.isKeyPressed(Input.Keys.LEFT) || Gdx.input.isKeyPressed(Input.Keys.A);
+        final boolean wantUp = Gdx.input.isKeyPressed(Input.Keys.UP) || Gdx.input.isKeyPressed(Input.Keys.W);
+        final boolean wantDown = Gdx.input.isKeyPressed(Input.Keys.DOWN) || Gdx.input.isKeyPressed(Input.Keys.S);
+        final boolean wantDig = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isKeyPressed(Input.Keys.F);
+        final boolean wantDrop = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isKeyPressed(Input.Keys.F);
 
-        public static final float DIG_DURATION = 0.25f;
-        public static final float FLIP_DURATION = 0.25f;
-        public static final float WALK_DURATION = 0.5f;
+        int dx = (wantRight != wantLeft) ? ((wantRight ? 1 : 0) + (wantLeft ? -1 : 0)) : 0;
+        int dy = (wantUp != wantDown) ? ((wantUp ? 1 : 0) + (wantDown ? -1 : 0)) : 0;
+
+        Vec dir = new Vec(dx, dy);
+        boolean action = wantDig || wantDrop;
+
+        processFalling(deltaTime);
+    }
+
+    private void processFalling(float deltaTime) {
+        List<Block> willFall = new ArrayList<Block>();
+
+        // TODO falling dynamically from bottom up
+        for (Grid.Field mField : mGrid.mFields) {
+            for (MyGame.Block block : mField.mBlocks) {
+                if (block.shouldFall()) {
+                    willFall.add(block);
+                }
+            }
+        }
+
+        for (Block block : willFall) {
+            if (block.getActions().size == 0) {
+                block.doFall();
+            }
+        }
+
+    }
+
+    public class Block extends Actor {
         // grid position
         final Vec pos = new Vec();
+        final FieldType mType = FieldType.STONE;
+
+        public Block() {
+            setSize(mGrid.WP, mGrid.HP);
+        }
+
+        void setGridPos(int x, int y) {
+            pos.set(x, y);
+            setPosition(x * mGrid.WP, y * mGrid.HP);
+        }
+
+        protected Grid.Field relativeField(int dx, int dy) {
+            return mGrid.getField(pos.x + dx, pos.y + dy);
+        }
+
+        protected Grid.Field relativeField(Vec dir) {
+            return mGrid.getField(Vec.add(pos, dir));
+        }
+
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
+            Color color = getColor();
+            batch.setColor(color.r, color.g, color.b, color.a * parentAlpha);
+
+            TextureRegion texture = mGrid.getTextureForType(mType);
+            batch.draw(texture, getX(), getY(), getOriginX(), getOriginY(),
+                    getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
+
+        }
+
+        boolean shouldFall() {
+            Grid.Field fieldBelow = relativeField(DIR_DOWN);
+            // if any block is below that would not fall
+            boolean anySolid = false;
+            for (Block block : fieldBelow.mBlocks) {
+                anySolid |= !block.shouldFall();
+            }
+            return fieldBelow.isEmpty() && !anySolid;
+        }
+
+        void doFall() {
+//            addAction(getMoveAction(0, -1));
+            Grid.Field currentField = mGrid.getField(pos);
+            // remove from old
+            currentField.mBlocks.remove(this);
+            // do move
+            pos.y -= 1;
+            Grid.Field newField = mGrid.getField(pos);
+            newField.mBlocks.add(this);
+            addAction(Actions.moveTo(mGrid.WP * pos.x, mGrid.HP * pos.y, WALK_DURATION));
+        }
+
+        @Override
+        public String toString() {
+            return "Block{" +
+                    "pos=" + pos +
+                    '}';
+        }
+    }
+
+    public class Ant extends Block {
+
         final Store mCarry = new Store();
         final Light mPointLight;
         // horizontal direction 1 = facing right; -1 = facing left
         int hdir = 1;
 
         public Ant() {
-            setSize(mGrid.WP, mGrid.HP);
             float lightDistance = 4;
             // candle light color
             Color lightColor = new Color(255 / 255f, 147 / 255f, 41 / 255f, 1);
             mPointLight = new PointLight(rayHandler, RAYS_PER_BALL, lightColor, lightDistance, pos.x, pos.y);
         }
 
-        private void setGridPos(int x, int y) {
-            setPosition(x * mGrid.WP, y * mGrid.HP);
-        }
-
         @Override
         public void act(float delta) {
             super.act(delta);
-            pos.set(MathUtils.round(getX() / mGrid.WP), MathUtils.round(getY() / mGrid.HP));
             mPointLight.setPosition((getX() / mGrid.WP) + 0.5f, getY() / mGrid.HP + 0.5f);
             // turn off on daylight:
 //            mPointLight.setActive(!rayHandler.pointAtLight(mPointLight.getPosition().x, mPointLight.getPosition().y));
@@ -332,16 +446,20 @@ public class MyGame extends ApplicationAdapter {
             final boolean wantDig = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isKeyPressed(Input.Keys.F);
             final boolean wantDrop = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isKeyPressed(Input.Keys.F);
 
-            boolean freeRight = relativeField(1, 0).isEmpty();
-            boolean freeLeft = relativeField(-1, 0).isEmpty();
-            boolean freeUp = relativeField(0, 1).isEmpty();
-            boolean freeDown = relativeField(0, -1).isEmpty();
+            boolean freeRight = relativeField(DIR_RIGHT).isEmpty();
+            boolean freeLeft = relativeField(DIR_LEFT).isEmpty();
+            boolean freeUp = relativeField(DIR_UP).isEmpty();
+            boolean freeDown = relativeField(DIR_DOWN).isEmpty();
 
             Ant occupantInFront = null;
             Store storeInFront = relativeField(hdir, 0).mStore;
-            for (Ant occupant : relativeField(hdir, 0).occupants) {
-                occupantInFront = occupant;
-                storeInFront = occupantInFront.mCarry;
+            // TODO make general
+            for (Block block : relativeField(hdir, 0).mBlocks) {
+                if (block instanceof Ant) {
+                    Ant occupant = ((Ant) block);
+                    occupantInFront = occupant;
+                    storeInFront = occupantInFront.mCarry;
+                }
             }
 
             boolean canDig = mCarry.isEmpty() && storeInFront.isPickable();
@@ -370,10 +488,8 @@ public class MyGame extends ApplicationAdapter {
 
             int dx = (doRight != doLeft) ? ((doRight ? 1 : 0) + (doLeft ? -1 : 0)) : 0;
             int dy = (doUp != doDown) ? ((doUp ? 1 : 0) + (doDown ? -1 : 0)) : 0;
-            if (!(onGround || climbing || onLedge)) {
-                // fall
-                return getMoveAction(0, -1);
-            } else if (dx != 0) {
+            // falling is handled in global falling phase
+            if (dx != 0) {
                 if (onGround) {
                     // ok
                     return getMoveAction(dx, 0);
@@ -419,6 +535,13 @@ public class MyGame extends ApplicationAdapter {
             return null;
         }
 
+        boolean shouldFall() {
+            boolean onGround = !relativeField(0, -1).isEmpty();
+            boolean climbing = !relativeField(hdir, 0).isEmpty();
+            boolean onLedge = !relativeField(hdir, -1).isEmpty();
+            return !(onGround || climbing || onLedge);
+        }
+
         private Action getMoveAction(int dx, int dy) {
             if (dx != 0 && dx != hdir) {
                 // need to flip first
@@ -428,15 +551,13 @@ public class MyGame extends ApplicationAdapter {
             } else {
                 // add immediately so that we do not have two ants on the same field
                 // TODO not so simple - we refresh every frame
-                // mGrid.getField(pos.x + dx, pos.y + dy).occupants.add(this);
-
+                mGrid.getField(pos).mBlocks.remove(this);
+                pos.x += dx;
+                pos.y += dy;
+                mGrid.getField(pos).mBlocks.add(this);
                 // animate move:
-                return Actions.moveBy(mGrid.WP * dx, mGrid.HP * dy, WALK_DURATION);
+                return Actions.moveTo(mGrid.WP * pos.x, mGrid.HP * pos.y, WALK_DURATION);
             }
-        }
-
-        private Grid.Field relativeField(int dx, int dy) {
-            return mGrid.getField(pos.x + dx, pos.y + dy);
         }
 
         @Override
@@ -492,7 +613,7 @@ public class MyGame extends ApplicationAdapter {
                 // consume
                 mCarry.content = null;
                 // do not spawn on same place
-                if (mGrid.getField(pos.x, pos.y + 1).occupants.isEmpty()) {
+                if (mGrid.getField(pos.x, pos.y + 1).mBlocks.isEmpty()) {
                     // spawn
                     createAnt(pos.x, pos.y + 1);
                 }
