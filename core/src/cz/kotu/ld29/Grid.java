@@ -20,7 +20,7 @@ public class Grid extends Actor {
     final int SURFACE_HEIGHT = 10;
 
     final int width = 40;
-    final int height = 30;
+    final int height = 20;
     // pixels per world unit
     final int WP = 16;
     final int HP = 16;
@@ -178,22 +178,9 @@ public class Grid extends Actor {
         }
 
         boolean blocksLight() {
-            if (mStore.isEmpty()) {
-                return false;
-            }
-            switch (mStore.content) {
-                case GROUND:
-                case STONE:
-                case BEDROCK:
-                    return true;
-
-                case VOID:
-                case SUPPORT:
-                case LEAF:
-                default:
-                    return false;
-            }
+            return !mStore.isEmpty() && mStore.content.blocksLight();
         }
+
     }
 
 }

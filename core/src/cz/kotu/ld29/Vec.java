@@ -19,6 +19,11 @@ public class Vec {
         return new Vec(pos.x + dir.x, pos.y + dir.y);
     }
 
+    public void add(Vec dir) {
+        this.x += dir.x;
+        this.y += dir.y;
+    }
+
     public void set(int x, int y) {
         this.x = x;
         this.y = y;
@@ -35,4 +40,6 @@ public class Vec {
                 ", y=" + y +
                 '}';
     }
+
+
 }
