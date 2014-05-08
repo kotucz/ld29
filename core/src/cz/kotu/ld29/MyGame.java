@@ -322,7 +322,13 @@ public class MyGame extends ApplicationAdapter {
         Vec dir = new Vec(dx, dy);
         boolean action = wantDig || wantDrop;
 
-        boolean anyChange = animating(deltaTime) || processFalling(deltaTime) || processMoveHorizontal(deltaTime, dir) || processMoveVertical(deltaTime, dir);
+        boolean anyChange =
+                animating(deltaTime) ||
+                        processFalling(deltaTime) ||
+                        processOrientationChange(deltaTime, dir) ||
+                        processMoveHorizontal(deltaTime, dir) ||
+                        processMoveVertical(deltaTime, dir) ||
+                        processDigAndDrop(deltaTime, wantDig, wantDrop);
     }
 
     private boolean animating(float deltaTime) {
@@ -361,8 +367,40 @@ public class MyGame extends ApplicationAdapter {
         return !willFall.isEmpty();
     }
 
+    private boolean processOrientationChange(float deltaTime, Vec dir) {
+        Set<Ant> willFlip = new HashSet<Ant>();
+
+        if (dir.x != 0) {
+            for (Grid.Field mField : mGrid.mFields) {
+                for (MyGame.Block block : mField.mBlocks) {
+                    Ant ant = block instanceof Ant ? ((Ant) block) : null;
+                    if (ant != null) {
+                        if (ant.hdir != dir.x) {
+                            willFlip.add(ant);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!willFlip.isEmpty()) {
+            Gdx.app.log("processMove", "willFlip: " + willFlip);
+        }
+
+        for (Ant ant : willFlip) {
+            if (ant.getActions().size == 0) {
+                ant.hdir = dir.x;
+                ant.addAction(Actions.delay(FLIP_DURATION));
+            }
+        }
+
+        return !willFlip.isEmpty();
+    }
+
     private boolean processMoveHorizontal(float deltaTime, Vec dir) {
         Set<Block> willMove = new HashSet<Block>();
+
+        dir = new Vec(dir.x, 0);
 
         if (dir.x != 0) {
             for (Grid.Field mField : mGrid.mFields) {
@@ -394,6 +432,8 @@ public class MyGame extends ApplicationAdapter {
     private boolean processMoveVertical(float deltaTime, Vec dir) {
         Set<Block> willMove = new HashSet<Block>();
 
+        dir = new Vec(0, dir.y);
+
         if (dir.y != 0) {
             for (Grid.Field mField : mGrid.mFields) {
                 for (MyGame.Block block : mField.mBlocks) {
@@ -419,6 +459,40 @@ public class MyGame extends ApplicationAdapter {
         }
 
         return !willMove.isEmpty();
+    }
+
+    // TODO make independent of ant order when more ants takes/gives each other
+    private boolean processDigAndDrop(float deltaTime, boolean doDig, boolean doDrop) {
+        Set<Ant> willDo = new HashSet<Ant>();
+
+        if (doDig || doDrop) {
+            for (Grid.Field mField : mGrid.mFields) {
+                for (MyGame.Block block : mField.mBlocks) {
+                    Ant ant = block instanceof Ant ? ((Ant) block) : null;
+                    if (ant != null) {
+                        if (ant.canDig() || ant.canDrop()) {
+                            willDo.add(ant);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!willDo.isEmpty()) {
+            Gdx.app.log("processMove", "willDo: " + willDo);
+        }
+
+        for (Ant ant : willDo) {
+            if (ant.getActions().size == 0) {
+                if (ant.canDig()) {
+                    ant.doDig();
+                } else if (ant.canDrop()) {
+                    ant.doDrop();
+                }
+            }
+        }
+
+        return !willDo.isEmpty();
     }
 
     public class Block extends Actor {
@@ -582,19 +656,8 @@ public class MyGame extends ApplicationAdapter {
             boolean freeUp = relativeField(DIR_UP).isEmpty();
             boolean freeDown = relativeField(DIR_DOWN).isEmpty();
 
-            Ant occupantInFront = null;
-            Store storeInFront = relativeField(hdir, 0).mStore;
-            // TODO make general
-            for (Block block : relativeField(hdir, 0).mBlocks) {
-                if (block instanceof Ant) {
-                    Ant occupant = ((Ant) block);
-                    occupantInFront = occupant;
-                    storeInFront = occupantInFront.mCarry;
-                }
-            }
-
-            boolean canDig = mCarry.isEmpty() && storeInFront.isPickable();
-            boolean canDrop = mCarry.isPickable() && storeInFront.isEmpty();
+            boolean canDig = canDig();
+            boolean canDrop = canDrop();
 
             boolean doDig = wantDig && canDig;
             boolean doDrop = wantDrop && canDrop;
@@ -645,19 +708,11 @@ public class MyGame extends ApplicationAdapter {
             }
 
             if (doDig) {
-                // field in front of ant
-                mCarry.content = storeInFront.content;
-                storeInFront.content = FieldType.VOID;
-                app.log("Ant", "" + this + " picked: " + mCarry.content);
-                return Actions.delay(DIG_DURATION);
+                return doDig();
             }
 
             if (doDrop) {
-                // field in front of ant
-                storeInFront.content = mCarry.content;
-                mCarry.content = null;
-                app.log("Ant", "" + this + " dropped: " + storeInFront.content);
-                return Actions.delay(DIG_DURATION);
+                return doDrop();
             }
 
             // grid coordinates
@@ -665,6 +720,30 @@ public class MyGame extends ApplicationAdapter {
 //            Gdx.app.log("Ant", "g " + pos.x + ", " + pos.y + " d " + dx + ", " + dy + " " + field.isEmpty());
 
             return null;
+        }
+
+        private Store getStoreInFront() {
+            Ant occupantInFront = null;
+            Store storeInFront = relativeField(hdir, 0).mStore;
+            // TODO make general
+            for (Block block : relativeField(hdir, 0).mBlocks) {
+                if (block instanceof Ant) {
+                    Ant occupant = ((Ant) block);
+                    occupantInFront = occupant;
+                    storeInFront = occupantInFront.mCarry;
+                }
+            }
+            return storeInFront;
+        }
+
+        private boolean canDrop() {
+            Store storeInFront = getStoreInFront();
+            return mCarry.isPickable() && storeInFront.isEmpty();
+        }
+
+        private boolean canDig() {
+            Store storeInFront = getStoreInFront();
+            return mCarry.isEmpty() && storeInFront.isPickable();
         }
 
         private boolean isClimbing() {
@@ -680,6 +759,26 @@ public class MyGame extends ApplicationAdapter {
             boolean climbing = isClimbing();
             boolean onLedge = !relativeField(hdir, -1).isEmpty();
             return !(onGround || climbing || onLedge);
+        }
+
+        private Action doDig() {
+            Store storeInFront = getStoreInFront();
+            // field in front of ant
+            mCarry.content = storeInFront.content;
+            storeInFront.content = FieldType.VOID;
+            app.log("Ant", "" + this + " picked: " + mCarry.content);
+            addAction(Actions.delay(DIG_DURATION));
+            return null;
+        }
+
+        private Action doDrop() {
+            Store storeInFront = getStoreInFront();
+            // field in front of ant
+            storeInFront.content = mCarry.content;
+            mCarry.content = null;
+            app.log("Ant", "" + this + " dropped: " + storeInFront.content);
+            addAction(Actions.delay(DIG_DURATION));
+            return null;
         }
 
         private Action getMoveAction(int dx, int dy) {
