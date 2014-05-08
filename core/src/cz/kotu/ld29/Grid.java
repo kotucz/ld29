@@ -181,6 +181,19 @@ public class Grid extends Actor {
             return !mStore.isEmpty() && mStore.content.blocksLight();
         }
 
+        Store getStoreOnField() {
+            MyGame.Ant occupantInFront = null;
+            Store storeInFront = mStore;
+            // TODO make general
+            for (MyGame.Block block : mBlocks) {
+                if (block instanceof MyGame.Ant) {
+                    MyGame.Ant occupant = ((MyGame.Ant) block);
+                    occupantInFront = occupant;
+                    storeInFront = occupantInFront.mCarry;
+                }
+            }
+            return storeInFront;
+        }
     }
 
 }

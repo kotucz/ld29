@@ -5,7 +5,7 @@ package cz.kotu.ld29;
  */
 class Store {
 
-    FieldType content;
+    FieldType content = FieldType.VOID;
 
     boolean isEmpty() {
         return content == null || content == FieldType.VOID;

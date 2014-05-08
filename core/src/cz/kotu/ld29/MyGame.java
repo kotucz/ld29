@@ -328,7 +328,8 @@ public class MyGame extends ApplicationAdapter {
                         processOrientationChange(deltaTime, dir) ||
                         processMoveHorizontal(deltaTime, dir) ||
                         processMoveVertical(deltaTime, dir) ||
-                        processDigAndDrop(deltaTime, wantDig, wantDrop);
+//                        processDigAndDrop(deltaTime, wantDig, wantDrop) ||
+                        processDigAndDropChains(deltaTime, wantDig, wantDrop);
     }
 
     private boolean animating(float deltaTime) {
@@ -461,7 +462,6 @@ public class MyGame extends ApplicationAdapter {
         return !willMove.isEmpty();
     }
 
-    // TODO make independent of ant order when more ants takes/gives each other
     private boolean processDigAndDrop(float deltaTime, boolean doDig, boolean doDrop) {
         Set<Ant> willDo = new HashSet<Ant>();
 
@@ -493,6 +493,72 @@ public class MyGame extends ApplicationAdapter {
         }
 
         return !willDo.isEmpty();
+    }
+
+    /**
+     * Drag and drop independent of ant order when more ants takes/gives each other.
+     */
+    private boolean processDigAndDropChains(float deltaTime, boolean doDig, boolean doDrop) {
+        if (!doDig && !doDrop) {
+            return false;
+        }
+
+        List<List<Ant>> chains = new ArrayList<List<Ant>>();
+
+        for (int y = 0; y < mGrid.height; y++) {
+            List<Ant> chain = null;
+            for (int x = 0; x < mGrid.width; x++) {
+                Ant ant = null;
+                for (MyGame.Block block : mGrid.getField(x, y).mBlocks) {
+                    if (block instanceof Ant) {
+                        ant = ((Ant) block);
+                    }
+                }
+                if (ant != null) {
+                    if (chain == null) {
+                        chain = new ArrayList<Ant>();
+                    }
+                    if (ant.headsRight()) {
+                        chain.add(0, ant);
+                    } else {
+                        chain.add(ant);
+                    }
+                } else {
+                    if (chain != null) {
+                        chains.add(chain);
+                    }
+                    chain = null;
+                }
+            }
+        }
+
+        if (!chains.isEmpty()) {
+            Gdx.app.log("processMove", "chains: " + chains);
+        }
+
+        for (List<Ant> chain : chains) {
+            // at least one ant is always in the chain
+            Ant ant0 = chain.get(0);
+            Store inFront = ant0.getStoreInFront();
+            // decide if whole chain digs or drops
+            if (inFront.isEmpty()) {
+                // each puts inFront
+                for (Ant ant : chain) {
+                    ant.doDrop();
+                }
+            } else if (inFront.isPickable()) {
+                // last ant must have space
+                if (chain.get(chain.size() - 1).mCarry.isEmpty()) {
+                    // each takes from front
+                    for (int i = chain.size() - 1; i >= 0; i--) {
+                        Ant ant = chain.get(i);
+                        ant.doDig();
+                    }
+                }
+            }
+        }
+
+        return !chains.isEmpty();
     }
 
     public class Block extends Actor {
@@ -723,17 +789,7 @@ public class MyGame extends ApplicationAdapter {
         }
 
         private Store getStoreInFront() {
-            Ant occupantInFront = null;
-            Store storeInFront = relativeField(hdir, 0).mStore;
-            // TODO make general
-            for (Block block : relativeField(hdir, 0).mBlocks) {
-                if (block instanceof Ant) {
-                    Ant occupant = ((Ant) block);
-                    occupantInFront = occupant;
-                    storeInFront = occupantInFront.mCarry;
-                }
-            }
-            return storeInFront;
+            return relativeField(hdir, 0).getStoreOnField();
         }
 
         private boolean canDrop() {
@@ -775,7 +831,7 @@ public class MyGame extends ApplicationAdapter {
             Store storeInFront = getStoreInFront();
             // field in front of ant
             storeInFront.content = mCarry.content;
-            mCarry.content = null;
+            mCarry.content = FieldType.VOID;
             app.log("Ant", "" + this + " dropped: " + storeInFront.content);
             addAction(Actions.delay(DIG_DURATION));
             return null;
