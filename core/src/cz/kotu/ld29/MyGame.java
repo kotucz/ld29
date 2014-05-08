@@ -25,7 +25,9 @@ import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static com.badlogic.gdx.Gdx.app;
 import static cz.kotu.ld29.Tex.Tex;
@@ -320,10 +322,25 @@ public class MyGame extends ApplicationAdapter {
         Vec dir = new Vec(dx, dy);
         boolean action = wantDig || wantDrop;
 
-        processFalling(deltaTime);
+        boolean anyChange = animating(deltaTime) || processFalling(deltaTime) || processMoveHorizontal(deltaTime, dir) || processMoveVertical(deltaTime, dir);
     }
 
-    private void processFalling(float deltaTime) {
+    private boolean animating(float deltaTime) {
+        List<Block> animates = new ArrayList<Block>();
+
+        // TODO falling dynamically from bottom up
+        for (Grid.Field mField : mGrid.mFields) {
+            for (MyGame.Block block : mField.mBlocks) {
+                if (block.getActions().size > 0) {
+                    animates.add(block);
+                }
+            }
+        }
+
+        return !animates.isEmpty();
+    }
+
+    private boolean processFalling(float deltaTime) {
         List<Block> willFall = new ArrayList<Block>();
 
         // TODO falling dynamically from bottom up
@@ -341,6 +358,67 @@ public class MyGame extends ApplicationAdapter {
             }
         }
 
+        return !willFall.isEmpty();
+    }
+
+    private boolean processMoveHorizontal(float deltaTime, Vec dir) {
+        Set<Block> willMove = new HashSet<Block>();
+
+        if (dir.x != 0) {
+            for (Grid.Field mField : mGrid.mFields) {
+                for (MyGame.Block block : mField.mBlocks) {
+                    Ant ant = block instanceof Ant ? ((Ant) block) : null;
+                    if (ant != null) {
+                        Set<Block> willMoveIsland = new HashSet<Block>();
+                        if (ant.canMoveHorizontal(dir, willMoveIsland) && (ant.onGround() || willMoveIsland.size() == 1)) {
+                            willMove.addAll(willMoveIsland);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!willMove.isEmpty()) {
+            Gdx.app.log("processMove", "willMove: " + willMove);
+        }
+
+        for (Block block : willMove) {
+            if (block.getActions().size == 0) {
+                block.doMove(dir);
+            }
+        }
+
+        return !willMove.isEmpty();
+    }
+
+    private boolean processMoveVertical(float deltaTime, Vec dir) {
+        Set<Block> willMove = new HashSet<Block>();
+
+        if (dir.y != 0) {
+            for (Grid.Field mField : mGrid.mFields) {
+                for (MyGame.Block block : mField.mBlocks) {
+                    Ant ant = block instanceof Ant ? ((Ant) block) : null;
+                    if (ant != null) {
+                        Set<Block> willMoveIsland = new HashSet<Block>();
+                        if (block.canMoveVertical(dir, willMoveIsland) && (ant.isClimbing() || dir.y < 0)) {
+                            willMove.addAll(willMoveIsland);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!willMove.isEmpty()) {
+            Gdx.app.log("processMove", "willMove: " + willMove);
+        }
+
+        for (Block block : willMove) {
+            if (block.getActions().size == 0) {
+                block.doMove(dir);
+            }
+        }
+
+        return !willMove.isEmpty();
     }
 
     public class Block extends Actor {
@@ -386,6 +464,42 @@ public class MyGame extends ApplicationAdapter {
             return fieldBelow.isEmpty() && !anySolid;
         }
 
+        boolean canMoveHorizontal(Vec dir, Set<Block> willMoveIsland) {
+            if (dir.x == 0 || dir.y != 0) {
+                throw new IllegalArgumentException("invalid dir " + dir);
+            }
+            if (this instanceof Ant || mType == FieldType.STONE) {
+                willMoveIsland.add(this);
+                Grid.Field fieldNext = relativeField(dir);
+                // if any block cannot be pushed - this cannot be pushed
+                boolean anySolid = fieldNext.mStore.content.isStatic();
+                for (Block block : fieldNext.mBlocks) {
+                    anySolid |= !block.canMoveHorizontal(dir, willMoveIsland);
+                }
+                return !anySolid;
+            } else {
+                return false;
+            }
+        }
+
+        boolean canMoveVertical(Vec dir, Set<Block> willMoveIsland) {
+            if (dir.x != 0 || dir.y == 0) {
+                throw new IllegalArgumentException("invalid dir " + dir);
+            }
+            if (this instanceof Ant || mType == FieldType.STONE) {
+                willMoveIsland.add(this);
+                Grid.Field fieldNext = relativeField(dir);
+                // if any block cannot be pushed - this cannot be pushed
+                boolean anySolid = fieldNext.mStore.content.isStatic();
+                for (Block block : fieldNext.mBlocks) {
+                    anySolid |= !block.canMoveVertical(dir, willMoveIsland);
+                }
+                return !anySolid;
+            } else {
+                return false;
+            }
+        }
+
         void doFall() {
 //            addAction(getMoveAction(0, -1));
             Grid.Field currentField = mGrid.getField(pos);
@@ -396,6 +510,23 @@ public class MyGame extends ApplicationAdapter {
             Grid.Field newField = mGrid.getField(pos);
             newField.mBlocks.add(this);
             addAction(Actions.moveTo(mGrid.WP * pos.x, mGrid.HP * pos.y, WALK_DURATION));
+        }
+
+        void doMove(Vec dir) {
+            Grid.Field currentField = mGrid.getField(pos);
+            // remove from old
+            currentField.mBlocks.remove(this);
+            // do move
+            pos.add(dir);
+            Grid.Field newField = mGrid.getField(pos);
+            newField.mBlocks.add(this);
+            addAction(Actions.moveTo(mGrid.WP * pos.x, mGrid.HP * pos.y, WALK_DURATION));
+
+//            Grid.Field fieldNext = relativeField(dir);
+            // if any block cannot be pushed - this cannot be pushed
+//            for (Block block : fieldNext.mBlocks) {
+//                block.doMove(dir);
+//            }
         }
 
         @Override
@@ -429,10 +560,10 @@ public class MyGame extends ApplicationAdapter {
             mPointLight.setActive(!mDayLight.contains(mPointLight.getPosition().x, mPointLight.getPosition().y));
 
             if (getActions().size == 0) {
-                Action nextAction = getNextAction();
-                if (nextAction != null) {
-                    addAction(nextAction);
-                }
+//                Action nextAction = getNextAction();
+//                if (nextAction != null) {
+//                    addAction(nextAction);
+//                }
             } else {
                 // just animate
             }
@@ -477,8 +608,8 @@ public class MyGame extends ApplicationAdapter {
                 }
             }
 
-            boolean onGround = !relativeField(0, -1).isEmpty();
-            boolean climbing = !relativeField(hdir, 0).isEmpty();
+            boolean onGround = onGround();
+            boolean climbing = isClimbing();
             boolean onLedge = !relativeField(hdir, -1).isEmpty();
 
             boolean doRight = wantRight & freeRight;
@@ -492,6 +623,7 @@ public class MyGame extends ApplicationAdapter {
             if (dx != 0) {
                 if (onGround) {
                     // ok
+                    doMove(DIR_RIGHT);
                     return getMoveAction(dx, 0);
                 } else {
                     if (onLedge) {
@@ -535,9 +667,17 @@ public class MyGame extends ApplicationAdapter {
             return null;
         }
 
+        private boolean isClimbing() {
+            return !relativeField(hdir, 0).isEmpty();
+        }
+
+        private boolean onGround() {
+            return !relativeField(0, -1).isEmpty();
+        }
+
         boolean shouldFall() {
-            boolean onGround = !relativeField(0, -1).isEmpty();
-            boolean climbing = !relativeField(hdir, 0).isEmpty();
+            boolean onGround = onGround();
+            boolean climbing = isClimbing();
             boolean onLedge = !relativeField(hdir, -1).isEmpty();
             return !(onGround || climbing || onLedge);
         }
