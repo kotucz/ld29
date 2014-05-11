@@ -21,9 +21,7 @@ public class Grid extends Actor {
 
     final int width = 40;
     final int height = 20;
-    // pixels per world unit
-    final int WP = 16;
-    final int HP = 16;
+
     final List<Field> mFields = new ArrayList<Field>();
     private final Random random = new Random();
     private Field mOutsideField;
@@ -83,7 +81,7 @@ public class Grid extends Actor {
 
                 TextureRegion texture = getTextureForType(field.mStore);
                 if (texture != null) {
-                    batch.draw(texture, x * WP, y * HP);
+                    batch.draw(texture, x, y, 1, 1);
                 }
 
             }
@@ -123,7 +121,7 @@ public class Grid extends Actor {
             for (int x = 0; x < width; x++) {
                 Grid.Field field = getField(x, y);
                 shapeRenderer.setColor(color.set(field.color));
-                shapeRenderer.rect(x * WP, y * HP, WP, HP);
+                shapeRenderer.rect(x, y, 1, 1);
             }
         }
         shapeRenderer.end();

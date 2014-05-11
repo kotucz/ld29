@@ -15,7 +15,6 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.scenes.scene2d.Action;
@@ -34,7 +33,7 @@ import static cz.kotu.ld29.Tex.Tex;
 
 public class MyGame extends ApplicationAdapter {
 
-    public static final boolean ENABLE_LIGHTS = false;
+    public static final boolean ENABLE_LIGHTS = true;
     public static final float DIG_DURATION = 0.25f;
     public static final float FLIP_DURATION = 0.25f;
     public static final float WALK_DURATION = 0.5f;
@@ -65,7 +64,7 @@ public class MyGame extends ApplicationAdapter {
 
         // emulated display size
 //        mViewport = new ExtendViewport(160, 120);
-        mViewport = new ExtendViewport(320, 240);
+        mViewport = new ExtendViewport(20, 15);
         mStage = new Stage(mViewport);
 
         Gdx.input.setInputProcessor(mStage);
@@ -286,16 +285,7 @@ public class MyGame extends ApplicationAdapter {
 
         Camera camera = mViewport.getCamera();
 
-//        rayHandler.setCombinedMatrix(camera.combined, camera.position.x,
-//                camera.position.y, camera.viewportWidth * camera.zoom,
-//                camera.viewportHeight * camera.zoom);
-
-
-        Matrix4 tempCombined = camera.combined.cpy();
-        tempCombined.scl(16);
-
-//        rayHandler.setCombinedMatrix(camera.combined);
-        rayHandler.setCombinedMatrix(tempCombined);
+        rayHandler.setCombinedMatrix(camera.combined);
 
 //        if (stepped)
         rayHandler.update();
@@ -567,12 +557,12 @@ public class MyGame extends ApplicationAdapter {
         final FieldType mType = FieldType.STONE;
 
         public Block() {
-            setSize(mGrid.WP, mGrid.HP);
+            setSize(1, 1);
         }
 
         void setGridPos(int x, int y) {
             pos.set(x, y);
-            setPosition(x * mGrid.WP, y * mGrid.HP);
+            setPosition(x, y);
         }
 
         protected Grid.Field relativeField(int dx, int dy) {
@@ -649,7 +639,7 @@ public class MyGame extends ApplicationAdapter {
             pos.y -= 1;
             Grid.Field newField = mGrid.getField(pos);
             newField.mBlocks.add(this);
-            addAction(Actions.moveTo(mGrid.WP * pos.x, mGrid.HP * pos.y, WALK_DURATION));
+            addAction(Actions.moveTo(pos.x, pos.y, WALK_DURATION));
         }
 
         void doMove(Vec dir) {
@@ -660,7 +650,7 @@ public class MyGame extends ApplicationAdapter {
             pos.add(dir);
             Grid.Field newField = mGrid.getField(pos);
             newField.mBlocks.add(this);
-            addAction(Actions.moveTo(mGrid.WP * pos.x, mGrid.HP * pos.y, WALK_DURATION));
+            addAction(Actions.moveTo(pos.x, pos.y, WALK_DURATION));
 
 //            Grid.Field fieldNext = relativeField(dir);
             // if any block cannot be pushed - this cannot be pushed
@@ -694,7 +684,7 @@ public class MyGame extends ApplicationAdapter {
         @Override
         public void act(float delta) {
             super.act(delta);
-            mPointLight.setPosition((getX() / mGrid.WP) + 0.5f, getY() / mGrid.HP + 0.5f);
+            mPointLight.setPosition(getX() + 0.5f, getY() + 0.5f);
             // turn off on daylight:
 //            mPointLight.setActive(!rayHandler.pointAtLight(mPointLight.getPosition().x, mPointLight.getPosition().y));
             mPointLight.setActive(!mDayLight.contains(mPointLight.getPosition().x, mPointLight.getPosition().y));
@@ -851,7 +841,7 @@ public class MyGame extends ApplicationAdapter {
                 pos.y += dy;
                 mGrid.getField(pos).mBlocks.add(this);
                 // animate move:
-                return Actions.moveTo(mGrid.WP * pos.x, mGrid.HP * pos.y, WALK_DURATION);
+                return Actions.moveTo(pos.x, pos.y, WALK_DURATION);
             }
         }
 
@@ -867,7 +857,7 @@ public class MyGame extends ApplicationAdapter {
             // show what is carried
             TextureRegion carryTexture = mGrid.getTextureForType(mCarry);
             if (carryTexture != null) {
-                batch.draw(carryTexture, getX() + 4 + 6 * hdir, getY() + 1, 8f, 8f);
+                batch.draw(carryTexture, getX() + (4 + 6 * hdir) / 16f, getY() + 1 / 16f, 8 / 16f, 8 / 16f);
             }
         }
 
@@ -930,7 +920,7 @@ public class MyGame extends ApplicationAdapter {
 
             TextureRegion carryTexture = mGrid.getTextureForType(mCarry);
             if (carryTexture != null) {
-                batch.draw(carryTexture, getX() + 4, getY() + 1, 8f, 8f);
+                batch.draw(carryTexture, getX() + 4 / 16f, getY() + 1 / 16f, 8 / 16f, 8 / 16f);
             }
 
         }
